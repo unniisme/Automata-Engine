@@ -51,6 +51,8 @@ class DFA(FiniteAutomata):
         transition table is a mapping, such that transitionTable[state][action] = delta(state, action) 
         s is the start state
         F is the set of final state
+
+        delta function is automatically constructed from the transitionTable
         """
         for q in Q: #Checking if automata is a complete DFA
             try:
@@ -89,6 +91,9 @@ class DFA(FiniteAutomata):
         return self.delta(self.delta_cap(q, s[:-1]), s[-1])
 
     def CheckAccept(self, x) -> bool:
+        """
+        Check if the input string is accepted by the DFA
+        """
         return self.delta_cap(self.s, x) in self.F
 
 
@@ -96,7 +101,7 @@ class DFA(FiniteAutomata):
         """
         Check if 2 DFAs are equal.
         Note that the names of states have to be equal.
-        Does not check for polymorphism
+        Does not check for homomorphism
         """
         if M1.Q != M2.Q:
             return False
@@ -119,8 +124,14 @@ class DFA(FiniteAutomata):
 
 
     def MinimizedDFA(dfa : "DFA", makeuid : bool = True) -> "DFA":
+        """
+        Find the DFA with the minimum number of states that accepts the same language
+        """
         # Reachability
         def ReachableDFA(dfa) -> DFA:
+            """
+            Runs a DFS on the DFA from the start state and removes states that are unreachable
+            """
             frontier = [dfa.s]
             expanded = []
             while len(frontier) != 0:
@@ -138,18 +149,23 @@ class DFA(FiniteAutomata):
             return DFA(Q, dfa.sigma, transitionTable, dfa.s, dfa.F)
 
         def uid(dfa) -> DFA:
+            """
+            Rename the DFA with unique numbers for states.
+            For clean representation purposes.
+            """
             uidStates = {q : Uniq.getVal() for q in dfa.Q}
             transitionTable = {uidStates[q] : {a : uidStates[dfa.delta(q,a)] for a in dfa.sigma} for q in dfa.Q}
 
             return DFA({uidStates[q] for q in dfa.Q}, dfa.sigma, transitionTable, uidStates[dfa.s], {uidStates[q] for q in dfa.F})
 
-
+        # Remove unreachable states
         dfa = ReachableDFA(dfa)
 
         partitions = set()
         oldPartition = None
         marked = set()
 
+        # Mark initial states
         for p in dfa.Q:
             for q in dfa.Q:
                 if p!=q:
@@ -158,7 +174,7 @@ class DFA(FiniteAutomata):
                     elif not (p not in dfa.F and q in dfa.F):
                         partitions.add(frozenset([p,q]))
 
-
+        # Mark each state
         updateFlag = True
         while partitions != oldPartition:
             oldPartition = partitions.copy()         
@@ -185,10 +201,12 @@ class DFA(FiniteAutomata):
                             partitions = temp_partitions
                             partitions.add(newP)
         
+        # Add all other states as singleton partitions
         for q in dfa.Q:
             if not any([q in partition for partition in partitions]):
                 partitions.add(frozenset({q}))
 
+        # Define transition between equivalence classes
         partitionTransitions = {}
         for partition in partitions:
             partitionTransitions[partition] = {}
@@ -203,6 +221,7 @@ class DFA(FiniteAutomata):
                         partitionTransitions[partition][a] = partition1
                         break
         
+        # Define start and final states
         s = [partition for partition in partitions if dfa.s in partition][0]
         F = set()
         for f in dfa.F:
@@ -210,48 +229,56 @@ class DFA(FiniteAutomata):
                 if f in partition:
                     F.add(partition)
                     continue
+        
         if makeuid:
             return uid(DFA(partitions, dfa.sigma, partitionTransitions, s, F))
         return DFA(partitions, dfa.sigma, partitionTransitions, s, F)
         
-        
-
 
     def Intersection(M1, M2):
+        """
+        Returns a DFA, the language of which is the intersection of the languages of in the 2 input DFAs
+        """
         if M1.sigma != M2.sigma:
             return AutomataError
 
         Q = [(q1,q2) for q1 in M1.Q for q2 in M2.Q]     # Q = Q1xQ2
         sigma = M1.sigma
-        transitionTable = {}        # delta((q1,q2), a) = (delta1(q1,a), delta2(q2,a))
+        transitionTable = {}                            # delta((q1,q2), a) = (delta1(q1,a), delta2(q2,a))
         for q1 in M1.Q:
             for q2 in M2.Q:
                 transitionTable[(q1,q2)] = {}
                 for a in sigma:
                     transitionTable[(q1,q2)][a] = (M1.delta(q1, a), M2.delta(q2, a))
-        s = (M1.s, M2.s)            # s = (s1,s2)
-        F = {(q1,q2) for q1 in M1.F for q2 in M2.F} # F = F1xF2
+        s = (M1.s, M2.s)                                # s = (s1,s2)
+        F = {(q1,q2) for q1 in M1.F for q2 in M2.F}     # F = F1xF2
 
         return DFA(Q, sigma, transitionTable, s, F)
     
     def Union(M1, M2):
+        """
+        Returns a DFA, the language of which is the union of the languages of in the 2 input DFAs
+        """
         if M1.sigma != M2.sigma:
             return AutomataError
 
         Q = [(q1,q2) for q1 in M1.Q for q2 in M2.Q]     # Q = Q1xQ2
         sigma = M1.sigma
-        transitionTable = {}        # delta((q1,q2), a) = (delta1(q1,a), delta2(q2,a))
+        transitionTable = {}                            # delta((q1,q2), a) = (delta1(q1,a), delta2(q2,a))
         for q1 in M1.Q:
             for q2 in M2.Q:
                 transitionTable[(q1,q2)] = {}
                 for a in sigma:
                     transitionTable[(q1,q2)][a] = (M1.delta(q1, a), M2.delta(q2, a))
-        s = (M1.s, M2.s)            # s = (s1,s2)
+        s = (M1.s, M2.s)                                # s = (s1,s2)
         F = set.union({(q1,q2) for q1 in M1.Q for q2 in M2.F},{(q1,q2) for q1 in M1.F for q2 in M2.Q})  # F = (F1xQ2)U(Q1xF2)
 
         return DFA(Q, sigma, transitionTable, s, F)
 
     def Compliment(M1):
+        """
+        Returns a DFA, the language of which is the complement of the languages of in the input DFA
+        """
         return DFA(M1.Q, M1.sigma, M1.transitionTable, M1.s, M1.Q.difference(M1.F))
 
 
@@ -269,6 +296,16 @@ class DFA(FiniteAutomata):
 class NFA(FiniteAutomata):
 
     def __init__(self, Q : set, sigma : set, transitionTable : set, S : set, F : set):
+        """
+        Define an NFA.
+        Q is the set of states
+        sigma is the alphabet of the language
+        transition table is a mapping, such that transitionTable[state][action] = delta(state, action) 
+        S is the set of start states
+        F is the set of final states
+
+        delta function is automatically constructed from the transitionTable
+        """
         self.Q = Q
         self.sigma = sigma.union({None})  #None being epsilon
         self.transitionTable = transitionTable
@@ -294,6 +331,9 @@ class NFA(FiniteAutomata):
         return self.transitionTable[q][a]
 
     def GetEpsilonUnion(self, q):
+        """
+        Returns the set of all states that can be reached via epsilon transitions from the input state.
+        """
         if type(q) == set:
             A = q.copy()
             for state in q:
@@ -326,6 +366,9 @@ class NFA(FiniteAutomata):
         
 
     def CheckAccept(self, s : list):
+        """
+        Check if the input string is accepted by the NFA
+        """
         if self.delta_cap(self.S, s).intersection(self.F) == set([]):
             return False
         return True
@@ -333,6 +376,7 @@ class NFA(FiniteAutomata):
     #Kleene Algebra
     def Concat(N1, N2):
         """
+        For N1 of language L1 and N2 of language L2, returns L1.L2
         Currently assumes that state names are already different. Screws up otherwise
         """
         if N1.sigma != N2.sigma:
@@ -349,6 +393,9 @@ class NFA(FiniteAutomata):
         return NFA(set.union(N1.Q,N2.Q), N1.sigma, transitionTable, N1.S, N2.F)
 
     def Union(N1, N2):
+        """
+        For N1 of language L1 and N2 of language L2, returns L1+L2
+        """
         if N1.sigma != N2.sigma:
             raise AutomataError
 
@@ -361,6 +408,9 @@ class NFA(FiniteAutomata):
         return NFA(Q, N1.sigma, transitionTable, {newState}, set.union(N1.F,N2.F))
 
     def Closure(N1):
+        """
+        For N1 of language L1, returns L1*
+        """
         newState = Uniq.getVal()
         Q = N1.Q.union({newState})
         transitionTable = N1.transitionTable.copy()
@@ -389,18 +439,25 @@ class NFA(FiniteAutomata):
 
 
 def NFAtoDFA(nfa : NFA) -> DFA:
+    """
+    Converts an NFA to a DFA
+    """
     subsets = []
     transitionTable = {}
+
+    # States are all subsets of states of NFA
     for i in range(len(nfa.Q)+1):
         subsets += [set(i) for i in itertools.combinations(nfa.Q, i)]   
 
     s = subsets.index(nfa.S)
-    
+
+    # Final state is any state in DFA such that its intersection with the final states of NFA is non empty    
     F = set()
     for i, subset in enumerate(subsets):
         if subset.intersection(nfa.F) != set([]):
             F.add(i)
 
+    # Transitions
     for i,A in enumerate(subsets):
         transitionTable[i] = {}
         for x in nfa.sigma:
@@ -409,7 +466,9 @@ def NFAtoDFA(nfa : NFA) -> DFA:
     return DFA(set(range(len(subsets))), nfa.sigma.difference({None}), transitionTable, s, F)
 
 def StringToNFA(string : str, alphabet : set) -> NFA:
-
+    """
+    Creates an NFA that accepts only the given string
+    """
     Q = [Uniq.getVal() for i in range(len(string)+1)]
     transitionTable = {}
     for i in range(len(string)):
