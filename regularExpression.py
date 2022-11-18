@@ -1,3 +1,4 @@
+# A regular expression parser
 from finiteAutomata import *
 
 class RegularExpression:

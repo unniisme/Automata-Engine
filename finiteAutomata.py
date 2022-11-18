@@ -295,7 +295,7 @@ class DFA(FiniteAutomata):
 
 class NFA(FiniteAutomata):
 
-    def __init__(self, Q : set, sigma : set, transitionTable : set, S : set, F : set):
+    def __init__(self, Q : set, sigma : set, transitionTable : dict, S : set, F : set):
         """
         Define an NFA.
         Q is the set of states
